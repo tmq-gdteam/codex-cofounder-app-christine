@@ -646,6 +646,10 @@ textarea::placeholder {
   margin-bottom: 0;
 }
 
+.filter-actions {
+  margin: calc(var(--space-2) * -1) 0 var(--space-4);
+}
+
 .chip {
   min-height: var(--tab-height);
   border-radius: var(--radius-md);

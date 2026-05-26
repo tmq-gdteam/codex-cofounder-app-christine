@@ -162,9 +162,9 @@ const UI = {
     return `<span class="badge ${className}">[${escapeHtml(status)}]</span>`;
   },
 
-  button({ label, variant = "secondary", id = "", data = {}, disabled = false, type = "button", extraClass = "" }) {
-    const attrs = dataAttributes(data);
-    return `<button class="btn ${variant} ${extraClass}" ${id ? `id="${id}"` : ""} type="${type}" ${attrs} ${disabled ? "disabled" : ""}>${label}</button>`;
+  button({ label, variant = "secondary", id = "", data = {}, disabled = false, type = "button", extraClass = "", extraAttrs = "" }) {
+    const dataAttrs = dataAttributes(data);
+    return `<button class="btn ${variant} ${extraClass}" ${id ? `id="${id}"` : ""} type="${type}" ${dataAttrs} ${disabled ? "disabled" : ""} ${extraAttrs}>${label}</button>`;
   },
 
   card({ title, subtitle = "", actions = "", body = "", className = "" }) {
@@ -201,16 +201,20 @@ const UI = {
   },
 
   field({ id, label, value = "", placeholder = "", type = "input", helper = "", error = "", disabled = false }) {
+    const helperId = helper ? `${id}Help` : "";
+    const errorId = error ? `${id}Error` : "";
+    const describedBy = [helperId, errorId].filter(Boolean).join(" ");
+    const accessibility = `${error ? `aria-invalid="true"` : `aria-invalid="false"`} ${describedBy ? `aria-describedby="${describedBy}"` : ""}`;
     const control =
       type === "textarea"
-        ? `<textarea id="${id}" placeholder="${placeholder}" ${disabled ? "disabled" : ""}>${escapeHtml(value)}</textarea>`
-        : `<input id="${id}" value="${escapeHtml(value)}" placeholder="${placeholder}" ${disabled ? "disabled" : ""} />`;
+        ? `<textarea id="${id}" placeholder="${placeholder}" ${accessibility} ${disabled ? "disabled" : ""}>${escapeHtml(value)}</textarea>`
+        : `<input id="${id}" value="${escapeHtml(value)}" placeholder="${placeholder}" ${accessibility} ${disabled ? "disabled" : ""} />`;
     return `
       <div class="field ${error ? "invalid" : ""}">
         <label for="${id}">${label}</label>
         ${control}
-        ${helper ? `<span class="helper">${helper}</span>` : ""}
-        <span class="error-text">${error || ""}</span>
+        ${helper ? `<span class="helper" id="${helperId}">${helper}</span>` : ""}
+        <span class="error-text" id="${id}Error">${error || ""}</span>
       </div>
     `;
   },
@@ -508,6 +512,7 @@ function renderNavItem(item) {
     variant: "ghost",
     data: { view: item.view },
     extraClass: active,
+    extraAttrs: state.view === item.view ? `aria-current="page"` : "",
   });
 }
 
@@ -618,6 +623,7 @@ function renderActivity() {
         helper: "Dropdown mirrors the filter chips for compact workflows.",
       })}
     </div>
+    ${state.activeFilter !== "All" ? `<div class="actions filter-actions">${UI.button({ label: "Clear filters", variant: "ghost", data: { clearFilters: "" } })}<span class="helper">${filtered.length} matching rows</span></div>` : ""}
     ${
       state.feedError
         ? UI.alert("error", "Live feed unavailable.", "Prototype state is preserved. Retry to restore the local feed.")
@@ -801,7 +807,8 @@ function renderArtifactRow(artifact) {
 }
 
 function renderChip(label, active, data) {
-  return `<button class="chip ${active ? "active" : ""}" ${dataAttributes(data)}>${label}</button>`;
+  const tabAttrs = data.tab ? `role="tab" aria-selected="${active ? "true" : "false"}"` : "";
+  return `<button class="chip ${active ? "active" : ""}" ${dataAttributes(data)} ${tabAttrs}>${label}</button>`;
 }
 
 function renderDrawer() {
@@ -924,6 +931,14 @@ function bindCurrentView() {
     });
   }
 
+  document.querySelectorAll("[data-clear-filters]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.activeFilter = "All";
+      showToast("Filters cleared.");
+      render();
+    });
+  });
+
   document.querySelectorAll("[data-tab]").forEach((button) => {
     button.addEventListener("click", () => {
       state.activeWorkstream = button.dataset.tab;
@@ -1033,5 +1048,12 @@ function render() {
   if (state.onboarded) renderShell();
   else renderOnboarding();
 }
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && (state.drawer || state.modal)) {
+    event.preventDefault();
+    closeOverlays();
+  }
+});
 
 render();
