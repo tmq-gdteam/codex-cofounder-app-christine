@@ -20,6 +20,7 @@ const state = {
   decisionNote: "",
   decisionSubmitting: false,
   feedError: false,
+  compactMode: false,
   demoLabel: "Local prototype data",
 };
 
@@ -147,43 +148,139 @@ const reviewItems = [
   },
 ];
 
-function badge(status) {
-  const key = status.toLowerCase().replace(/\s/g, "-");
-  const cls =
-    key === "running"
-      ? "running"
-      : key === "done"
-        ? "done"
-        : key === "warn"
-          ? "warn"
-          : key === "blocked"
-            ? "blocked"
-            : key === "needs-review"
-              ? "review"
-              : "info";
-  return `<span class="badge ${cls}">[${status}]</span>`;
-}
+const navItems = [
+  { label: "Dashboard", view: "dashboard", icon: "▦" },
+  { label: "Activity", view: "activity", icon: "◌" },
+  { label: "Workstreams", view: "workstreams", icon: "▤" },
+  { label: "Review Queue", view: "review-queue", icon: "✓" },
+  { label: "Settings", view: "settings", icon: "⚙" },
+];
 
-function icon(name) {
-  const icons = {
-    Dashboard: "▦",
-    Activity: "◌",
-    Workstreams: "▤",
-    "Review Queue": "✓",
-    Settings: "⚙",
-  };
-  return icons[name] || "•";
-}
+const UI = {
+  badge(status) {
+    const className = statusClass(status);
+    return `<span class="badge ${className}">[${escapeHtml(status)}]</span>`;
+  },
 
-function showToast(message) {
-  state.toast = message;
-  render();
-  window.clearTimeout(showToast.timer);
-  showToast.timer = window.setTimeout(() => {
-    state.toast = "";
-    render();
-  }, 2600);
-}
+  button({ label, variant = "secondary", id = "", data = {}, disabled = false, type = "button", extraClass = "" }) {
+    const attrs = dataAttributes(data);
+    return `<button class="btn ${variant} ${extraClass}" ${id ? `id="${id}"` : ""} type="${type}" ${attrs} ${disabled ? "disabled" : ""}>${label}</button>`;
+  },
+
+  card({ title, subtitle = "", actions = "", body = "", className = "" }) {
+    return `
+      <section class="card ${className}">
+        ${title || actions ? UI.sectionHeader({ title, subtitle, actions }) : ""}
+        ${body}
+      </section>
+    `;
+  },
+
+  sectionHeader({ title, subtitle = "", actions = "" }) {
+    return `
+      <div class="card-head">
+        <div>
+          ${title ? `<h3>${title}</h3>` : ""}
+          ${subtitle ? `<p class="helper">${subtitle}</p>` : ""}
+        </div>
+        ${actions}
+      </div>
+    `;
+  },
+
+  screenHeader({ title, description, actions = "" }) {
+    return `
+      <div class="screen-head">
+        <div>
+          <h2>${title}</h2>
+          <p>${description}</p>
+        </div>
+        ${actions}
+      </div>
+    `;
+  },
+
+  field({ id, label, value = "", placeholder = "", type = "input", helper = "", error = "", disabled = false }) {
+    const control =
+      type === "textarea"
+        ? `<textarea id="${id}" placeholder="${placeholder}" ${disabled ? "disabled" : ""}>${escapeHtml(value)}</textarea>`
+        : `<input id="${id}" value="${escapeHtml(value)}" placeholder="${placeholder}" ${disabled ? "disabled" : ""} />`;
+    return `
+      <div class="field ${error ? "invalid" : ""}">
+        <label for="${id}">${label}</label>
+        ${control}
+        ${helper ? `<span class="helper">${helper}</span>` : ""}
+        <span class="error-text">${error || ""}</span>
+      </div>
+    `;
+  },
+
+  select({ id, label, value, options, helper = "" }) {
+    return `
+      <div class="field">
+        <label for="${id}">${label}</label>
+        <select id="${id}">
+          ${options.map((option) => `<option value="${option}" ${value === option ? "selected" : ""}>${option}</option>`).join("")}
+        </select>
+        ${helper ? `<span class="helper">${helper}</span>` : ""}
+      </div>
+    `;
+  },
+
+  toggle({ id, label, checked, helper = "", disabled = false }) {
+    return `
+      <label class="toggle-row" for="${id}">
+        <span>
+          <strong>${label}</strong>
+          ${helper ? `<small>${helper}</small>` : ""}
+        </span>
+        <input id="${id}" type="checkbox" ${checked ? "checked" : ""} ${disabled ? "disabled" : ""} />
+      </label>
+    `;
+  },
+
+  emptyState(title, text) {
+    return `<div class="empty-state"><strong>${title}</strong><p class="helper">${text}</p></div>`;
+  },
+
+  alert(kind, title, text = "") {
+    return `<div class="alert ${kind}"><strong>${title}</strong>${text ? `<br />${text}` : ""}</div>`;
+  },
+
+  skeletonList(count = 3) {
+    return `<div class="mini-list">${Array.from({ length: count }, () => `<div class="skeleton"></div>`).join("")}</div>`;
+  },
+
+  progress(value, label = "Progress") {
+    return `<div class="progress-line" aria-label="${label}"><span style="--w:${value}%"></span></div>`;
+  },
+
+  toast(message) {
+    return `<div class="toast ${message ? "show" : ""}" role="status">${message}</div>`;
+  },
+
+  drawer({ open, label, body }) {
+    if (!open) return `<div class="drawer-shell" aria-hidden="true"></div>`;
+    return `
+      <div class="drawer-shell open" role="dialog" aria-modal="true" aria-label="${label}">
+        <div class="scrim" data-close></div>
+        <aside class="drawer">${body}</aside>
+      </div>
+    `;
+  },
+
+  modal({ open, label, body }) {
+    if (!open) return `<div class="modal-shell" aria-hidden="true"></div>`;
+    return `
+      <div class="modal-shell open" role="dialog" aria-modal="true" aria-label="${label}">
+        <div class="scrim" data-close></div>
+        <div class="modal-wrap">
+          <section class="modal">${body}</section>
+        </div>
+      </div>
+    `;
+  },
+};
 
 function validateForm() {
   const errors = {};
@@ -206,6 +303,7 @@ function generatePlan() {
     render();
     return;
   }
+
   state.planStatus = "loading";
   render();
   window.setTimeout(() => {
@@ -221,6 +319,16 @@ function createWorkspace() {
   state.view = "dashboard";
   showToast("Workspace created. First workstreams are ready.");
   render();
+}
+
+function showToast(message) {
+  state.toast = message;
+  render();
+  window.clearTimeout(showToast.timer);
+  showToast.timer = window.setTimeout(() => {
+    state.toast = "";
+    render();
+  }, 2600);
 }
 
 function openArtifact(id) {
@@ -243,9 +351,10 @@ function openDecision(kind, itemId = state.selectedReviewId) {
 function submitDecision() {
   state.decisionSubmitting = true;
   render();
+
   window.setTimeout(() => {
     const selected = reviewItems.find((item) => item.id === state.modal.itemId);
-    selected.status = "DONE";
+    if (selected) selected.status = "DONE";
     state.modal = null;
     state.drawer = null;
     state.decisionSubmitting = false;
@@ -255,7 +364,6 @@ function submitDecision() {
 }
 
 function renderOnboarding() {
-  const err = state.errors;
   const loading = state.planStatus === "loading";
   const ready = state.planStatus === "ready";
 
@@ -266,116 +374,156 @@ function renderOnboarding() {
           <div class="eyebrow"><span class="pulse"></span> cofounder.new</div>
           <h1>Create your company workspace</h1>
           <p>Start with an idea. This prototype turns it into a visible AI cofounder workspace with local demo workstreams, review items, and artifacts.</p>
-          <div class="setup-grid" aria-label="Onboarding path">
-            ${["Idea input", "Initial plan", "Workstreams", "First artifact"]
-              .map(
-                (item, index) => `
-                <div class="step-tile">
-                  <span class="number">0${index + 1}</span>
-                  <strong>${item}</strong>
-                  <p class="helper">${index === 0 ? "Describe the company." : index === 1 ? "Review the generated plan." : index === 2 ? "See work domains form." : "Inspect outputs safely."}</p>
-                </div>`
-              )
-              .join("")}
-          </div>
+          ${renderSetupPath()}
         </div>
 
         <aside class="panel form-panel">
           <form id="onboardingForm" novalidate>
-            <div class="field ${err.idea ? "invalid" : ""}">
-              <label for="idea">Company idea</label>
-              <textarea id="idea" placeholder="An AI cofounder for solo founders..." ${loading ? "disabled" : ""}>${escapeHtml(state.form.idea)}</textarea>
-              <span class="helper">Describe the company in plain language. You can refine it later.</span>
-              <span class="error-text">${err.idea || ""}</span>
-            </div>
-            <div class="field ${err.audience ? "invalid" : ""}">
-              <label for="audience">Target audience</label>
-              <input id="audience" value="${escapeHtml(state.form.audience)}" placeholder="Solo founders, makers, early-stage teams" ${loading ? "disabled" : ""} />
-              <span class="error-text">${err.audience || ""}</span>
-            </div>
-            <div class="field ${err.goal ? "invalid" : ""}">
-              <label for="goal">Launch goal</label>
-              <input id="goal" value="${escapeHtml(state.form.goal)}" placeholder="Create the first launch plan" ${loading ? "disabled" : ""} />
-              <span class="error-text">${err.goal || ""}</span>
-            </div>
-            <div class="field">
-              <label for="notes">Constraints / notes</label>
-              <textarea id="notes" placeholder="Keep claims safe. No external publishing." ${loading ? "disabled" : ""}>${escapeHtml(state.form.notes)}</textarea>
-            </div>
+            ${UI.field({
+              id: "idea",
+              label: "Company idea",
+              type: "textarea",
+              value: state.form.idea,
+              placeholder: "An AI cofounder for solo founders...",
+              helper: "Describe the company in plain language. You can refine it later.",
+              error: state.errors.idea,
+              disabled: loading,
+            })}
+            ${UI.field({
+              id: "audience",
+              label: "Target audience",
+              value: state.form.audience,
+              placeholder: "Solo founders, makers, early-stage teams",
+              error: state.errors.audience,
+              disabled: loading,
+            })}
+            ${UI.field({
+              id: "goal",
+              label: "Launch goal",
+              value: state.form.goal,
+              placeholder: "Create the first launch plan",
+              error: state.errors.goal,
+              disabled: loading,
+            })}
+            ${UI.field({
+              id: "notes",
+              label: "Constraints / notes",
+              type: "textarea",
+              value: state.form.notes,
+              placeholder: "Keep claims safe. No external publishing.",
+              disabled: loading,
+            })}
             <div class="actions">
-              <button class="btn primary" id="generatePlan" type="button" ${loading ? "disabled" : ""}>${loading ? "Structuring..." : "Generate plan"}</button>
-              <button class="btn" id="createWorkspace" type="button" ${ready ? "" : "disabled"}>Create workspace</button>
+              ${UI.button({ id: "generatePlan", label: loading ? "Structuring..." : "Generate plan", variant: "primary", disabled: loading })}
+              ${UI.button({ id: "createWorkspace", label: "Create workspace", disabled: !ready })}
             </div>
           </form>
-
-          <div class="plan-preview" ${ready || loading ? "" : "hidden"}>
-            ${
-              loading
-                ? `<div class="skeleton"></div><div class="mini-list"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>`
-                : `<strong>Initial plan preview</strong>
-                   <p class="helper">Local prototype plan. No backend or external execution is connected.</p>
-                   <div class="mini-list">
-                    ${workstreams.map((w) => `<div class="mini-item"><span>${w.name}</span>${badge(w.status)}</div>`).join("")}
-                   </div>`
-            }
-          </div>
+          ${renderPlanPreview(loading, ready)}
         </aside>
       </section>
-      ${toastMarkup()}
+      ${UI.toast(state.toast)}
     </main>
   `;
 
-  document.querySelector("#idea").addEventListener("input", (event) => updateField("idea", event.target.value));
-  document.querySelector("#audience").addEventListener("input", (event) => updateField("audience", event.target.value));
-  document.querySelector("#goal").addEventListener("input", (event) => updateField("goal", event.target.value));
-  document.querySelector("#notes").addEventListener("input", (event) => updateField("notes", event.target.value));
-  document.querySelector("#generatePlan").addEventListener("click", generatePlan);
-  document.querySelector("#createWorkspace").addEventListener("click", createWorkspace);
+  bindOnboarding();
+}
+
+function renderSetupPath() {
+  const steps = [
+    ["Idea input", "Describe the company."],
+    ["Initial plan", "Review the generated plan."],
+    ["Workstreams", "See work domains form."],
+    ["First artifact", "Inspect outputs safely."],
+  ];
+
+  return `
+    <div class="setup-grid" aria-label="Onboarding path">
+      ${steps
+        .map(
+          ([title, text], index) => `
+          <div class="step-tile">
+            <span class="number">0${index + 1}</span>
+            <strong>${title}</strong>
+            <p class="helper">${text}</p>
+          </div>
+        `
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+function renderPlanPreview(loading, ready) {
+  if (!loading && !ready) return `<div class="plan-preview" hidden></div>`;
+
+  const body = loading
+    ? `<div class="skeleton"></div>${UI.skeletonList(3)}`
+    : `<strong>Initial plan preview</strong>
+       <p class="helper">Local prototype plan. No backend or external execution is connected.</p>
+       <div class="mini-list">
+        ${workstreams.map((workstream) => `<div class="mini-item"><span>${workstream.name}</span>${UI.badge(workstream.status)}</div>`).join("")}
+       </div>`;
+
+  return `<div class="plan-preview">${body}</div>`;
 }
 
 function renderShell() {
   app.innerHTML = `
-    <div class="app-shell">
-      <aside class="sidebar">
-        <div>
-          <div class="logo">cofounder.new</div>
-          <div class="demo-pill">${state.demoLabel}</div>
-        </div>
-        <nav class="nav" aria-label="Primary navigation">
-          ${["Dashboard", "Activity", "Workstreams", "Review Queue", "Settings"].map((label) => {
-            const view = label.toLowerCase().replace(/\s/g, "-");
-            const count = label === "Review Queue" ? `<span class="badge review">${pendingReviewCount()} pending</span>` : "";
-            return `<button class="btn ghost ${state.view === view ? "active" : ""}" data-view="${view}"><span>${icon(label)}</span>${label}${count}</button>`;
-          }).join("")}
-        </nav>
-        <div class="sidebar-footer">Prototype only. No real AI orchestration, integrations, billing, outreach, deployment, or backend execution is connected.</div>
-      </aside>
+    <div class="app-shell ${state.compactMode ? "is-compact" : ""}">
+      ${renderSidebar()}
       <main class="main">
-        <header class="topbar">
-          <div class="workspace-title">
-            <strong>${escapeHtml(state.form.idea || "Company workspace")}</strong>
-            <span class="meta">Current objective: ${escapeHtml(state.form.goal || "Create the first launch plan")}</span>
-          </div>
-          <div class="actions">
-            ${badge("RUNNING")}
-            <button class="btn warning" data-view="review-queue">${pendingReviewCount()} decisions</button>
-          </div>
-        </header>
+        ${renderTopbar()}
         <section class="content">${renderView()}</section>
       </main>
       ${renderDrawer()}
       ${renderModal()}
-      ${toastMarkup()}
+      ${UI.toast(state.toast)}
     </div>
   `;
 
-  document.querySelectorAll("[data-view]").forEach((button) => {
-    button.addEventListener("click", () => {
-      state.view = button.dataset.view;
-      render();
-    });
-  });
+  bindShell();
   bindCurrentView();
+}
+
+function renderSidebar() {
+  return `
+    <aside class="sidebar">
+      <div>
+        <div class="logo">cofounder.new</div>
+        <div class="demo-pill">${state.demoLabel}</div>
+      </div>
+      <nav class="nav" aria-label="Primary navigation">
+        ${navItems.map(renderNavItem).join("")}
+      </nav>
+      <div class="sidebar-footer">Prototype only. No real AI orchestration, integrations, billing, outreach, deployment, or backend execution is connected.</div>
+    </aside>
+  `;
+}
+
+function renderNavItem(item) {
+  const active = state.view === item.view ? "active" : "";
+  const count = item.view === "review-queue" ? UI.badge(`${pendingReviewCount()} pending`) : "";
+  return UI.button({
+    label: `<span>${item.icon}</span>${item.label}${count}`,
+    variant: "ghost",
+    data: { view: item.view },
+    extraClass: active,
+  });
+}
+
+function renderTopbar() {
+  return `
+    <header class="topbar">
+      <div class="workspace-title">
+        <strong>${escapeHtml(state.form.idea || "Company workspace")}</strong>
+        <span class="meta">Current objective: ${escapeHtml(state.form.goal || "Create the first launch plan")}</span>
+      </div>
+      <div class="actions">
+        ${UI.badge("RUNNING")}
+        ${UI.button({ label: `${pendingReviewCount()} decisions`, variant: "warning", data: { view: "review-queue" } })}
+      </div>
+    </header>
+  `;
 }
 
 function renderView() {
@@ -388,80 +536,92 @@ function renderView() {
 
 function renderDashboard() {
   return `
-    <div class="screen-head">
-      <div>
-        <h2>Operating Dashboard</h2>
-        <p>See what is running, what shipped, and what needs founder input. Counts below are local prototype state, not business outcomes.</p>
-      </div>
-      <button class="btn primary" data-view="review-queue">Review item</button>
-    </div>
-
+    ${UI.screenHeader({
+      title: "Operating Dashboard",
+      description: "See what is running, what shipped, and what needs founder input. Counts below are local prototype state, not business outcomes.",
+      actions: UI.button({ label: "Review item", variant: "primary", data: { view: "review-queue" } }),
+    })}
     <div class="grid dashboard-grid">
       <div class="grid">
-        <section class="card">
-          <div class="card-head">
-            <h3>Active workstreams</h3>
-            <span class="muted mono">${workstreams.length} domains</span>
-          </div>
-          <div class="metric-row">
-            <div class="metric"><span class="muted">Running</span><strong>${countStatus("RUNNING")}</strong></div>
-            <div class="metric"><span class="muted">Needs review</span><strong>${pendingReviewCount()}</strong></div>
-            <div class="metric"><span class="muted">Artifacts</span><strong>${artifacts.length}</strong></div>
-          </div>
-        </section>
-        <section class="grid workstream-grid">
-          ${workstreams.map(renderWorkstreamCard).join("")}
-        </section>
+        ${UI.card({
+          title: "Active workstreams",
+          actions: `<span class="muted mono">${workstreams.length} domains</span>`,
+          body: renderMetrics(),
+        })}
+        <section class="grid workstream-grid">${workstreams.map(renderWorkstreamCard).join("")}</section>
       </div>
       <aside class="grid">
-        <section class="card">
-          <div class="card-head">
-            <h3>Review Queue</h3>
-            <button class="btn ghost" data-view="review-queue">Open</button>
-          </div>
-          <div class="queue">${reviewItems.filter((item) => item.status !== "DONE").slice(0, 2).map(renderQueueItem).join("") || emptyState("No decisions needed right now.", "View live activity or workstreams.")}</div>
-        </section>
-        <section class="card">
-          <div class="card-head">
-            <h3>Live activity</h3>
-            <button class="btn ghost" data-view="activity">View activity</button>
-          </div>
-          <div class="feed">${activities.slice(0, 4).map(renderFeedRow).join("")}</div>
-        </section>
-        <section class="card">
-          <div class="card-head">
-            <h3>Recent outputs</h3>
-            <span class="muted">Prototype artifacts</span>
-          </div>
-          <div class="mini-list">${artifacts.map((a) => `<div class="artifact-row"><div><strong>${a.title}</strong><div class="helper">${a.type}</div></div><button class="btn ghost" data-artifact="${a.id}">Open</button></div>`).join("")}</div>
-        </section>
+        ${UI.card({
+          title: "Review Queue",
+          actions: UI.button({ label: "Open", variant: "ghost", data: { view: "review-queue" } }),
+          body: `<div class="queue">${renderReviewPreview()}</div>`,
+        })}
+        ${UI.card({
+          title: "Live activity",
+          actions: UI.button({ label: "View activity", variant: "ghost", data: { view: "activity" } }),
+          body: `<div class="feed">${activities.slice(0, 4).map(renderFeedRow).join("")}</div>`,
+        })}
+        ${UI.card({
+          title: "Recent outputs",
+          actions: `<span class="muted">Prototype artifacts</span>`,
+          body: `<div class="mini-list">${artifacts.map(renderArtifactRow).join("")}</div>`,
+        })}
       </aside>
     </div>
   `;
 }
 
+function renderMetrics() {
+  const metrics = [
+    ["Running", countStatus("RUNNING")],
+    ["Needs review", pendingReviewCount()],
+    ["Artifacts", artifacts.length],
+  ];
+
+  return `
+    <div class="metric-row">
+      ${metrics.map(([label, value]) => `<div class="metric"><span class="muted">${label}</span><strong>${value}</strong></div>`).join("")}
+    </div>
+  `;
+}
+
+function renderReviewPreview() {
+  const pending = reviewItems.filter((item) => item.status !== "DONE").slice(0, 2);
+  if (!pending.length) return UI.emptyState("No decisions needed right now.", "View live activity or workstreams.");
+  return pending.map(renderQueueItem).join("");
+}
+
 function renderActivity() {
+  const filters = ["All", "RUNNING", "DONE", "WARN", "BLOCKED", "NEEDS REVIEW", ...workstreams.map((workstream) => workstream.name)];
   const filtered =
     state.activeFilter === "All"
       ? activities
       : activities.filter((item) => item.status === state.activeFilter || item.stream === state.activeFilter);
+
   return `
-    <div class="screen-head">
-      <div>
-        <h2>Live Activity</h2>
-        <p>Timestamped local prototype events. This feed does not represent real backend execution.</p>
-      </div>
-      <button class="btn ${state.feedError ? "" : "danger"}" id="toggleFeedError">${state.feedError ? "Retry feed" : "Simulate feed error"}</button>
-    </div>
-    <div class="filters">
-      ${["All", "RUNNING", "DONE", "WARN", "BLOCKED", "NEEDS REVIEW", ...workstreams.map((w) => w.name)]
-        .map((filter) => `<button class="chip ${state.activeFilter === filter ? "active" : ""}" data-filter="${filter}">${filter}</button>`)
-        .join("")}
+    ${UI.screenHeader({
+      title: "Live Activity",
+      description: "Timestamped local prototype events. This feed does not represent real backend execution.",
+      actions: UI.button({
+        id: "toggleFeedError",
+        label: state.feedError ? "Retry feed" : "Simulate feed error",
+        variant: state.feedError ? "secondary" : "danger",
+      }),
+    })}
+    <div class="filter-bar">
+      <div class="filters">${filters.map((filter) => renderChip(filter, state.activeFilter === filter, { filter })).join("")}</div>
+      ${UI.select({
+        id: "activityFilter",
+        label: "Filter activity",
+        value: state.activeFilter,
+        options: filters,
+        helper: "Dropdown mirrors the filter chips for compact workflows.",
+      })}
     </div>
     ${
       state.feedError
-        ? `<div class="alert error"><strong>Live feed unavailable.</strong><br />Prototype state is preserved. Retry to restore the local feed.</div>`
-        : `<div class="feed">${filtered.length ? filtered.map(renderFeedRow).join("") : emptyState("No activity matches this filter.", "Choose another status or workstream.")}</div>`
+        ? UI.alert("error", "Live feed unavailable.", "Prototype state is preserved. Retry to restore the local feed.")
+        : `<div class="feed">${filtered.length ? filtered.map(renderFeedRow).join("") : UI.emptyState("No activity matches this filter.", "Choose another status or workstream.")}</div>`
     }
   `;
 }
@@ -469,222 +629,360 @@ function renderActivity() {
 function renderWorkstreams() {
   const active = workstreams.find((item) => item.name === state.activeWorkstream) || workstreams[0];
   const tasks = activities.filter((item) => item.stream === active.name);
+
   return `
-    <div class="screen-head">
-      <div>
-        <h2>Workstreams</h2>
-        <p>Organize AI cofounder work into understandable domains without turning the app into a chaotic feed.</p>
-      </div>
+    ${UI.screenHeader({
+      title: "Workstreams",
+      description: "Organize AI cofounder work into understandable domains without turning the app into a chaotic feed.",
+    })}
+    <div class="tabs" role="tablist">
+      ${workstreams.map((item) => renderChip(item.name, state.activeWorkstream === item.name, { tab: item.name })).join("")}
     </div>
-    <div class="tabs">
-      ${workstreams.map((item) => `<button class="chip ${state.activeWorkstream === item.name ? "active" : ""}" data-tab="${item.name}">${item.name}</button>`).join("")}
-    </div>
-    <section class="card">
-      <div class="card-head">
-        <div>
-          <h3>${active.name}</h3>
-          <p class="helper">${active.task}</p>
+    ${UI.card({
+      title: active.name,
+      subtitle: active.task,
+      actions: UI.badge(active.status),
+      body: `
+        ${UI.progress(active.progress, `${active.name} progress`)}
+        <h3 class="section-spacer">Current tasks</h3>
+        <div class="tasks">
+          ${tasks.length ? tasks.map(renderTaskRow).join("") : UI.emptyState("No tasks yet.", "Return to dashboard or start from onboarding.")}
         </div>
-        ${badge(active.status)}
-      </div>
-      <div class="progress-line" aria-label="Workstream progress"><span style="--w:${active.progress}%"></span></div>
-      <h3 style="margin-top: 18px;">Current tasks</h3>
-      <div class="tasks">
-        ${tasks.length ? tasks.map((task, index) => `<div class="task-row"><div><strong>${task.title}</strong><div class="helper">${task.stage}</div></div><div class="actions">${badge(task.status)}<button class="btn ghost" data-explain="${index}">Explain</button></div></div>`).join("") : emptyState("No tasks yet.", "Return to dashboard or start from onboarding.")}
-      </div>
-    </section>
+      `,
+    })}
   `;
 }
 
 function renderReviewQueue() {
   const selected = reviewItems.find((item) => item.id === state.selectedReviewId) || reviewItems[0];
   const artifact = selected ? artifacts.find((item) => item.id === selected.artifact) : null;
+
   return `
-    <div class="screen-head">
-      <div>
-        <h2>Review Queue</h2>
-        <p>Approve, edit, reject, or redirect local prototype outputs. No external action is taken.</p>
-      </div>
-    </div>
+    ${UI.screenHeader({
+      title: "Review Queue",
+      description: "Approve, edit, reject, or redirect local prototype outputs. No external action is taken.",
+    })}
     <div class="queue-layout">
-      <section class="card">
-        <div class="card-head">
-          <h3>Pending decisions</h3>
-          ${badge(pendingReviewCount() ? "NEEDS REVIEW" : "DONE")}
-        </div>
-        <div class="queue">${reviewItems.map(renderQueueItem).join("")}</div>
-      </section>
-      <section class="card">
-        ${
+      ${UI.card({
+        title: "Pending decisions",
+        actions: UI.badge(pendingReviewCount() ? "NEEDS REVIEW" : "DONE"),
+        body: `<div class="queue">${reviewItems.map(renderQueueItem).join("")}</div>`,
+      })}
+      ${UI.card({
+        body:
           selected && artifact
-            ? `<div class="card-head"><h3>${selected.title}</h3>${badge(selected.status)}</div>
-               <p>${selected.impact}</p>
-               <div class="artifact-body">${artifact.body}</div>
-               <div class="actions" style="margin-top: 16px;">
-                <button class="btn primary" data-decision="approve">Approve</button>
-                <button class="btn" data-decision="edit">Edit</button>
-                <button class="btn warning" data-decision="redirect">Redirect</button>
-                <button class="btn danger" data-decision="reject">Reject</button>
-                <button class="btn ghost" data-artifact="${artifact.id}">Open drawer</button>
-               </div>`
-            : emptyState("No decisions needed right now.", "View live activity or workstreams.")
-        }
-      </section>
+            ? `
+              ${UI.sectionHeader({ title: selected.title, actions: UI.badge(selected.status) })}
+              <p>${selected.impact}</p>
+              <div class="artifact-body">${artifact.body}</div>
+              <div class="actions section-spacer">
+                ${UI.button({ label: "Approve", variant: "primary", data: { decision: "approve" } })}
+                ${UI.button({ label: "Edit", data: { decision: "edit" } })}
+                ${UI.button({ label: "Redirect", variant: "warning", data: { decision: "redirect" } })}
+                ${UI.button({ label: "Reject", variant: "danger", data: { decision: "reject" } })}
+                ${UI.button({ label: "Open drawer", variant: "ghost", data: { artifact: artifact.id } })}
+              </div>
+            `
+            : UI.emptyState("No decisions needed right now.", "View live activity or workstreams."),
+      })}
     </div>
   `;
 }
 
 function renderSettings() {
+  const settings = ["Autonomy settings", "Account / Auth / Billing", "Integrations"];
+
   return `
-    <div class="screen-head">
-      <div>
-        <h2>Settings / Not Configured</h2>
-        <p>Future settings are shown as unavailable because auth, billing, integrations, and autonomy rules are missing requirements.</p>
-      </div>
-    </div>
+    ${UI.screenHeader({
+      title: "Settings / Not Configured",
+      description: "Future settings are shown as unavailable because auth, billing, integrations, and autonomy rules are missing requirements.",
+    })}
     <div class="grid">
-      ${["Autonomy settings", "Account / Auth / Billing", "Integrations"].map((item) => `
-        <section class="card">
-          <div class="card-head">
-            <h3>${item}</h3>
-            ${badge("BLOCKED")}
-          </div>
-          <p class="muted">This setting is not configured yet.</p>
-          <button class="btn" disabled>Unavailable</button>
-        </section>
-      `).join("")}
+      ${UI.card({
+        title: "Prototype preferences",
+        subtitle: "Local UI-only controls. These do not create backend behavior.",
+        body: UI.toggle({
+          id: "compactMode",
+          label: "Compact dashboard density",
+          checked: state.compactMode,
+          helper: "Adjusts spacing in the local prototype only.",
+        }),
+      })}
+      ${settings
+        .map(
+          (item) =>
+            UI.card({
+              title: item,
+              actions: UI.badge("BLOCKED"),
+              body: `<p class="muted">This setting is not configured yet.</p>${UI.button({ label: "Unavailable", disabled: true })}`,
+            })
+        )
+        .join("")}
     </div>
   `;
 }
 
 function renderWorkstreamCard(item) {
-  return `
-    <article class="card workstream-card">
-      <div class="card-head">
-        <h3>${item.name}</h3>
-        ${badge(item.status)}
-      </div>
+  return UI.card({
+    title: item.name,
+    actions: UI.badge(item.status),
+    className: "workstream-card",
+    body: `
       <p>${item.task}</p>
-      <div class="progress-line"><span style="--w:${item.progress}%"></span></div>
+      ${UI.progress(item.progress, `${item.name} progress`)}
       <div class="card-head">
         <span class="helper">${item.stage}</span>
-        <button class="btn ghost" data-view="workstreams" data-workstream="${item.name}">${item.outputs} outputs</button>
+        ${UI.button({
+          label: `${item.outputs} outputs`,
+          variant: "ghost",
+          data: { view: "workstreams", workstream: item.name },
+        })}
       </div>
-    </article>
-  `;
+    `,
+  });
 }
 
 function renderFeedRow(item, index) {
   return `
     <div class="feed-row">
       <span class="timestamp">${item.time}</span>
-      ${badge(item.status)}
+      ${UI.badge(item.status)}
       <div>
         <strong>${item.title}</strong>
         <div class="helper">${item.stream} / ${item.stage}</div>
       </div>
       <div class="actions">
-        ${item.artifact ? `<button class="btn ghost" data-artifact="${item.artifact}">Open</button>` : ""}
-        <button class="btn ghost" data-explain="${index}">Explain</button>
+        ${item.artifact ? UI.button({ label: "Open", variant: "ghost", data: { artifact: item.artifact } }) : ""}
+        ${UI.button({ label: "Explain", variant: "ghost", data: { explain: index } })}
       </div>
     </div>
   `;
 }
 
 function renderQueueItem(item) {
-  const artifact = artifacts.find((a) => a.id === item.artifact);
+  const artifact = artifacts.find((candidate) => candidate.id === item.artifact);
   return `
     <button class="queue-item ${state.selectedReviewId === item.id ? "selected" : ""}" data-review="${item.id}">
       <div class="row-head">
         <strong>${item.title}</strong>
-        ${badge(item.status)}
+        ${UI.badge(item.status)}
       </div>
       <span class="helper">${item.impact}</span>
-      <span class="helper">Artifact: ${artifact?.title || "Unavailable"}</span>
+      <span class="helper">Artifact: ${artifact ? artifact.title : "Unavailable"}</span>
     </button>
   `;
 }
 
+function renderTaskRow(task, index) {
+  return `
+    <div class="task-row">
+      <div>
+        <strong>${task.title}</strong>
+        <div class="helper">${task.stage}</div>
+      </div>
+      <div class="actions">
+        ${UI.badge(task.status)}
+        ${UI.button({ label: "Explain", variant: "ghost", data: { explain: index } })}
+      </div>
+    </div>
+  `;
+}
+
+function renderArtifactRow(artifact) {
+  return `
+    <div class="artifact-row">
+      <div>
+        <strong>${artifact.title}</strong>
+        <div class="helper">${artifact.type}</div>
+      </div>
+      ${UI.button({ label: "Open", variant: "ghost", data: { artifact: artifact.id } })}
+    </div>
+  `;
+}
+
+function renderChip(label, active, data) {
+  return `<button class="chip ${active ? "active" : ""}" ${dataAttributes(data)}>${label}</button>`;
+}
+
 function renderDrawer() {
-  if (!state.drawer) return `<div class="drawer-shell" aria-hidden="true"></div>`;
+  if (!state.drawer) return UI.drawer({ open: false });
+
   if (state.drawer.type === "artifact") {
     const artifact = artifacts.find((item) => item.id === state.drawer.id);
-    return `
-      <div class="drawer-shell open" role="dialog" aria-modal="true" aria-label="Artifact Preview">
-        <div class="scrim" data-close></div>
-        <aside class="drawer">
-          <div class="drawer-content">
-            <div class="card-head">
-              <div><h2>Artifact Preview</h2><p class="helper">${artifact.type} / ${artifact.stream}</p></div>
-              <button class="btn ghost" data-close>Close</button>
+    if (!artifact) return UI.drawer({ open: false });
+
+    return UI.drawer({
+      open: true,
+      label: "Artifact Preview",
+      body: `
+        <div class="drawer-content">
+          <div class="card-head">
+            <div>
+              <h2>Artifact Preview</h2>
+              <p class="helper">${artifact.type} / ${artifact.stream}</p>
             </div>
-            ${badge(artifact.status)}
-            <h3>${artifact.title}</h3>
-            <div class="artifact-body">${artifact.body}</div>
-            <div class="alert warning">No external publishing, outreach, deployment, or integrations are connected in this prototype.</div>
-            <div class="actions">
-              <button class="btn primary" data-decision="approve">Approve</button>
-              <button class="btn" data-decision="edit">Edit</button>
-              <button class="btn warning" data-decision="redirect">Redirect</button>
-            </div>
+            ${UI.button({ label: "Close", variant: "ghost", data: { close: "" } })}
           </div>
-        </aside>
-      </div>
-    `;
+          ${UI.badge(artifact.status)}
+          <h3>${artifact.title}</h3>
+          <div class="artifact-body">${artifact.body}</div>
+          ${UI.alert("warning", "No external publishing, outreach, deployment, or integrations are connected in this prototype.")}
+          <div class="actions">
+            ${UI.button({ label: "Approve", variant: "primary", data: { decision: "approve" } })}
+            ${UI.button({ label: "Edit", data: { decision: "edit" } })}
+            ${UI.button({ label: "Redirect", variant: "warning", data: { decision: "redirect" } })}
+          </div>
+        </div>
+      `,
+    });
   }
 
   const activity = activities[state.drawer.id] || activities[0];
-  return `
-    <div class="drawer-shell open" role="dialog" aria-modal="true" aria-label="Log explanation">
-      <div class="scrim" data-close></div>
-      <aside class="drawer">
-        <div class="drawer-content">
-          <div class="card-head">
-            <h2>Log Explanation</h2>
-            <button class="btn ghost" data-close>Close</button>
-          </div>
-          <div class="artifact-body"><span class="timestamp">${activity.time}</span> ${activity.title}</div>
-          <p>This row shows a local prototype activity event. It is designed to explain what is running, blocked, complete, or waiting for founder review without implying real backend execution.</p>
-          <div>${badge(activity.status)}</div>
+  return UI.drawer({
+    open: true,
+    label: "Log explanation",
+    body: `
+      <div class="drawer-content">
+        <div class="card-head">
+          <h2>Log Explanation</h2>
+          ${UI.button({ label: "Close", variant: "ghost", data: { close: "" } })}
         </div>
-      </aside>
-    </div>
-  `;
+        <div class="artifact-body"><span class="timestamp">${activity.time}</span> ${activity.title}</div>
+        <p>This row shows a local prototype activity event. It is designed to explain what is running, blocked, complete, or waiting for founder review without implying real backend execution.</p>
+        <div>${UI.badge(activity.status)}</div>
+      </div>
+    `,
+  });
 }
 
 function renderModal() {
-  if (!state.modal) return `<div class="modal-shell" aria-hidden="true"></div>`;
+  if (!state.modal) return UI.modal({ open: false });
   const item = reviewItems.find((review) => review.id === state.modal.itemId) || reviewItems[0];
-  return `
-    <div class="modal-shell open" role="dialog" aria-modal="true" aria-label="Approval Redirect Modal">
-      <div class="scrim" data-close></div>
-      <div class="modal-wrap">
-        <section class="modal">
-          <div class="card-head">
-            <h2>${decisionTitle(state.modal.kind)}</h2>
-            <button class="btn ghost" data-close>Close</button>
-          </div>
-          <p>${item.title}</p>
-          <div class="alert warning">This only updates local prototype state. No external action will be taken.</div>
-          <div class="field">
-            <label for="decisionNote">Optional instruction</label>
-            <textarea id="decisionNote" placeholder="Add guidance for the next iteration.">${escapeHtml(state.decisionNote)}</textarea>
-          </div>
-          <div class="actions">
-            <button class="btn primary" id="submitDecision" ${state.decisionSubmitting ? "disabled" : ""}>${state.decisionSubmitting ? "Applying..." : "Confirm"}</button>
-            <button class="btn ghost" data-close>Cancel</button>
-          </div>
-        </section>
+
+  return UI.modal({
+    open: true,
+    label: "Approval Redirect Modal",
+    body: `
+      <div class="card-head">
+        <h2>${decisionTitle(state.modal.kind)}</h2>
+        ${UI.button({ label: "Close", variant: "ghost", data: { close: "" } })}
       </div>
-    </div>
-  `;
+      <p>${item.title}</p>
+      ${UI.alert("warning", "This only updates local prototype state. No external action will be taken.")}
+      ${UI.field({
+        id: "decisionNote",
+        label: "Optional instruction",
+        type: "textarea",
+        value: state.decisionNote,
+        placeholder: "Add guidance for the next iteration.",
+      })}
+      <div class="actions">
+        ${UI.button({
+          id: "submitDecision",
+          label: state.decisionSubmitting ? "Applying..." : "Confirm",
+          variant: "primary",
+          disabled: state.decisionSubmitting,
+        })}
+        ${UI.button({ label: "Cancel", variant: "ghost", data: { close: "" } })}
+      </div>
+    `,
+  });
 }
 
-function decisionTitle(kind) {
-  if (kind === "edit") return "Edit before continuing";
-  if (kind === "reject") return "Reject this output";
-  if (kind === "redirect") return "Redirect the workstream";
-  return "Approve output";
+function bindOnboarding() {
+  const fields = ["idea", "audience", "goal", "notes"];
+  fields.forEach((field) => {
+    document.querySelector(`#${field}`).addEventListener("input", (event) => updateField(field, event.target.value));
+  });
+  document.querySelector("#generatePlan").addEventListener("click", generatePlan);
+  document.querySelector("#createWorkspace").addEventListener("click", createWorkspace);
+}
+
+function bindShell() {
+  document.querySelectorAll("[data-view]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.view = button.dataset.view;
+      if (button.dataset.workstream) state.activeWorkstream = button.dataset.workstream;
+      render();
+    });
+  });
+}
+
+function bindCurrentView() {
+  document.querySelectorAll("[data-filter]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.activeFilter = button.dataset.filter;
+      render();
+    });
+  });
+
+  const filterSelect = document.querySelector("#activityFilter");
+  if (filterSelect) {
+    filterSelect.addEventListener("change", (event) => {
+      state.activeFilter = event.target.value;
+      render();
+    });
+  }
+
+  document.querySelectorAll("[data-tab]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.activeWorkstream = button.dataset.tab;
+      render();
+    });
+  });
+
+  document.querySelectorAll("[data-review]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.selectedReviewId = button.dataset.review;
+      render();
+    });
+  });
+
+  document.querySelectorAll("[data-artifact]").forEach((button) => {
+    button.addEventListener("click", () => openArtifact(button.dataset.artifact));
+  });
+
+  document.querySelectorAll("[data-explain]").forEach((button) => {
+    button.addEventListener("click", () => openExplanation(Number(button.dataset.explain)));
+  });
+
+  document.querySelectorAll("[data-decision]").forEach((button) => {
+    button.addEventListener("click", () => openDecision(button.dataset.decision));
+  });
+
+  document.querySelectorAll("[data-close]").forEach((button) => {
+    button.addEventListener("click", closeOverlays);
+  });
+
+  const submit = document.querySelector("#submitDecision");
+  if (submit) submit.addEventListener("click", submitDecision);
+
+  const note = document.querySelector("#decisionNote");
+  if (note) note.addEventListener("input", (event) => (state.decisionNote = event.target.value));
+
+  const toggleFeedError = document.querySelector("#toggleFeedError");
+  if (toggleFeedError) {
+    toggleFeedError.addEventListener("click", () => {
+      state.feedError = !state.feedError;
+      showToast(state.feedError ? "Feed error shown. Prototype state is preserved." : "Feed restored.");
+      render();
+    });
+  }
+
+  const compactMode = document.querySelector("#compactMode");
+  if (compactMode) {
+    compactMode.addEventListener("change", (event) => {
+      state.compactMode = event.target.checked;
+      showToast(state.compactMode ? "Compact density enabled." : "Default density restored.");
+      render();
+    });
+  }
+}
+
+function closeOverlays() {
+  state.drawer = null;
+  state.modal = null;
+  render();
 }
 
 function pendingReviewCount() {
@@ -695,66 +993,32 @@ function countStatus(status) {
   return workstreams.filter((item) => item.status === status).length;
 }
 
-function emptyState(title, text) {
-  return `<div class="empty-state"><strong>${title}</strong><p class="helper">${text}</p></div>`;
+function decisionTitle(kind) {
+  if (kind === "edit") return "Edit before continuing";
+  if (kind === "reject") return "Reject this output";
+  if (kind === "redirect") return "Redirect the workstream";
+  return "Approve output";
 }
 
-function toastMarkup() {
-  return `<div class="toast ${state.toast ? "show" : ""}" role="status">${state.toast}</div>`;
+function statusClass(status) {
+  const key = status.toLowerCase().replace(/\s/g, "-");
+  if (key.includes("pending")) return "review";
+  if (key === "running") return "running";
+  if (key === "done") return "done";
+  if (key === "warn") return "warn";
+  if (key === "blocked") return "blocked";
+  if (key === "needs-review") return "review";
+  return "info";
 }
 
-function bindCurrentView() {
-  document.querySelectorAll("[data-filter]").forEach((button) =>
-    button.addEventListener("click", () => {
-      state.activeFilter = button.dataset.filter;
-      render();
-    })
-  );
-  document.querySelectorAll("[data-tab]").forEach((button) =>
-    button.addEventListener("click", () => {
-      state.activeWorkstream = button.dataset.tab;
-      render();
-    })
-  );
-  document.querySelectorAll("[data-workstream]").forEach((button) =>
-    button.addEventListener("click", () => {
-      state.activeWorkstream = button.dataset.workstream;
-    })
-  );
-  document.querySelectorAll("[data-review]").forEach((button) =>
-    button.addEventListener("click", () => {
-      state.selectedReviewId = button.dataset.review;
-      render();
-    })
-  );
-  document.querySelectorAll("[data-artifact]").forEach((button) =>
-    button.addEventListener("click", () => openArtifact(button.dataset.artifact))
-  );
-  document.querySelectorAll("[data-explain]").forEach((button) =>
-    button.addEventListener("click", () => openExplanation(Number(button.dataset.explain)))
-  );
-  document.querySelectorAll("[data-decision]").forEach((button) =>
-    button.addEventListener("click", () => openDecision(button.dataset.decision))
-  );
-  document.querySelectorAll("[data-close]").forEach((button) =>
-    button.addEventListener("click", () => {
-      state.drawer = null;
-      state.modal = null;
-      render();
-    })
-  );
-  const submit = document.querySelector("#submitDecision");
-  if (submit) submit.addEventListener("click", submitDecision);
-  const note = document.querySelector("#decisionNote");
-  if (note) note.addEventListener("input", (event) => (state.decisionNote = event.target.value));
-  const toggleFeedError = document.querySelector("#toggleFeedError");
-  if (toggleFeedError) {
-    toggleFeedError.addEventListener("click", () => {
-      state.feedError = !state.feedError;
-      showToast(state.feedError ? "Feed error shown. Prototype state is preserved." : "Feed restored.");
-      render();
-    });
-  }
+function dataAttributes(data) {
+  return Object.entries(data)
+    .map(([key, value]) => `data-${toKebab(key)}="${escapeHtml(value)}"`)
+    .join(" ");
+}
+
+function toKebab(value) {
+  return value.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
 }
 
 function escapeHtml(value) {

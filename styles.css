@@ -49,6 +49,12 @@
   --shadow-md: 0 8px 20px rgba(0, 0, 0, 0.38);
   --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.48);
   --shadow-cta: 0 0 24px rgba(0, 240, 255, 0.18);
+  --button-height-sm: 32px;
+  --button-height-md: 40px;
+  --input-height: 44px;
+  --tab-height: 36px;
+  --content-max: 1440px;
+  --dashboard-min-card: 260px;
 }
 
 * {
@@ -230,7 +236,7 @@ select {
   border-radius: var(--radius-md);
   background: var(--app-bg-raised);
   color: var(--app-text-primary);
-  min-height: 44px;
+  min-height: var(--input-height);
   padding: 11px 12px;
 }
 
@@ -252,7 +258,7 @@ textarea::placeholder {
 }
 
 .btn {
-  min-height: 40px;
+  min-height: var(--button-height-md);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -280,6 +286,12 @@ textarea::placeholder {
 
 .btn.ghost {
   background: transparent;
+}
+
+.btn.active {
+  color: var(--app-text-strong);
+  background: var(--app-primary-soft);
+  border: var(--border-active);
 }
 
 .btn.warning {
@@ -420,8 +432,21 @@ textarea::placeholder {
 }
 
 .content {
-  width: min(1440px, 100%);
+  width: min(var(--content-max), 100%);
   padding: var(--space-6);
+}
+
+.is-compact .content {
+  padding: var(--space-4);
+}
+
+.is-compact .card,
+.is-compact .panel,
+.is-compact .feed-row,
+.is-compact .queue-item,
+.is-compact .task-row,
+.is-compact .artifact-row {
+  padding: var(--space-3);
 }
 
 .screen-head {
@@ -609,8 +634,20 @@ textarea::placeholder {
   margin-bottom: var(--space-4);
 }
 
+.filter-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 280px);
+  gap: var(--space-4);
+  align-items: start;
+  margin-bottom: var(--space-4);
+}
+
+.filter-bar .filters {
+  margin-bottom: 0;
+}
+
 .chip {
-  min-height: 36px;
+  min-height: var(--tab-height);
   border-radius: var(--radius-md);
   border: var(--border-default);
   background: transparent;
@@ -648,6 +685,37 @@ textarea::placeholder {
   justify-content: space-between;
   gap: var(--space-3);
   align-items: center;
+}
+
+.section-spacer {
+  margin-top: var(--space-4);
+}
+
+.toggle-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+  align-items: center;
+  padding: var(--space-4);
+  border: var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--app-bg-raised);
+  color: var(--app-text-primary);
+}
+
+.toggle-row small {
+  display: block;
+  margin-top: var(--space-1);
+  color: var(--app-text-tertiary);
+  font-size: 0.75rem;
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+.toggle-row input {
+  width: 42px;
+  min-height: 24px;
+  accent-color: var(--app-accent-primary);
 }
 
 .drawer-shell,
@@ -789,7 +857,8 @@ textarea::placeholder {
 @media (max-width: 1020px) {
   .onboarding,
   .dashboard-grid,
-  .queue-layout {
+  .queue-layout,
+  .filter-bar {
     grid-template-columns: 1fr;
   }
 
